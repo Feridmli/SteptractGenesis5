@@ -11,7 +11,7 @@ import { Seaport } from "@opensea/seaport-js";
 const ItemType = { NATIVE: 0, ERC20: 1, ERC721: 2, ERC1155: 3 };
 const OrderType = { FULL_OPEN: 0, PARTIAL_OPEN: 1, FULL_RESTRICTED: 2, PARTIAL_RESTRICTED: 3 };
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://steptractgenesis.onrender.com";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://steptractgenesis1.onrender.com";
 const NFT_CONTRACT_ADDRESS = import.meta.env.VITE_NFT_CONTRACT || "0xf62049dd99d8a1fa57a31ce091282b2628acc301";
 
 // Seaport Address
