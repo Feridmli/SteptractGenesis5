@@ -24,7 +24,7 @@ const APECHAIN_ID = 33139;
 const APECHAIN_ID_HEX = "0x8173";
 
 // IPFS
-const FALLBACK_IMAGE_URL = "https://ipfs.io/ipfs/QmawxnmmzngbiYe1PSgc9YEthFX11uiTtT6YPdUdLD3x3E";
+const FALLBACK_IMAGE_URL = "https://ipfs.io/ipfs/QmYtCsNZoe8JurNmM9Gx38uSZdFAWycCpQG31xJ7BnzrTa";
 
 // Global Variables
 let provider = null;
