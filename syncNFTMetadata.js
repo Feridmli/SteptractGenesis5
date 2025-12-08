@@ -72,7 +72,11 @@ async function processNFT(tokenid) {
         success = true;
         break;
       } catch (err) {
-        if (err.message?.includes("owner query for nonexistent token")) return;
+        // Əgər token yoxdursa (yanlış ID), dayandır
+        if (err.message?.includes("owner query for nonexistent token")) {
+            console.warn(`⚠️ Token #${tokenid} mövcud deyil (nonexistent).`);
+            return;
+        }
         provider = getProvider();
         nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, nftABI, provider);
       }
@@ -174,11 +178,15 @@ async function main() {
     console.log(`🚀 Total minted NFTs: ${totalSupply}`);
 
     const BATCH_SIZE = 20;
-    for (let i = 0; i < totalSupply; i += BATCH_SIZE) {
+    
+    // DÜZƏLİŞ BURADADIR:
+    // i = 1-dən başlayır
+    // i <= totalSupply qoyduq ki, sonuncu NFT-ni də götürsün
+    for (let i = 1; i <= totalSupply; i += BATCH_SIZE) {
       const batch = Array.from(
         { length: BATCH_SIZE },
         (_, j) => i + j
-      ).filter(id => id < totalSupply);
+      ).filter(id => id <= totalSupply); // id 2222-ni aşmasın
 
       await Promise.allSettled(batch.map(tokenid => processNFT(tokenid)));
     }
