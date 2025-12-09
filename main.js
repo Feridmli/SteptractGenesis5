@@ -11,7 +11,7 @@ import { Seaport } from "@opensea/seaport-js";
 const ItemType = { NATIVE: 0, ERC20: 1, ERC721: 2, ERC1155: 3 };
 const OrderType = { FULL_OPEN: 0, PARTIAL_OPEN: 1, FULL_RESTRICTED: 2, PARTIAL_RESTRICTED: 3 };
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://steptractgenesis5.onrender.com";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://steptractgenesis.onrender.com";
 const NFT_CONTRACT_ADDRESS = import.meta.env.VITE_NFT_CONTRACT || "0xf62049dd99d8a1fa57a31ce091282b2628acc301";
 
 // Seaport Address
@@ -23,8 +23,8 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const APECHAIN_ID = 33139;
 const APECHAIN_ID_HEX = "0x8173";
 
-// IPFS (Şəkillər üçün sənin köhnə məntiqin)
-const FALLBACK_IMAGE_URL = "https://ipfs.io/ipfs/QmYtCsNZoe8JurNmM9Gx38uSZdFAWycCpQG31xJ7BnzrTa";
+// IPFS
+const FALLBACK_IMAGE_URL = "https://ipfs.io/ipfs/QmawxnmmzngbiYe1PSgc9YEthFX11uiTtT6YPdUdLD3x3E";
 
 // Global Variables
 let provider = null;
@@ -117,9 +117,10 @@ function orderToJsonSafe(obj) {
 }
 
 // ==========================================
-// CÜZDAN QOŞULMASI
+// CÜZDAN QOŞULMASI (YENİLƏNMİŞ - RELOADSIZ)
 // ==========================================
 
+// Çıxış funksiyası
 function handleDisconnect() {
   provider = null;
   signer = null;
@@ -130,16 +131,21 @@ function handleDisconnect() {
   disconnectBtn.style.display = "none";
   addrSpan.textContent = "";
   
+  // UI-ı yenilə (Buttonlar "Buy"-a çevrilir, "List" yox olur)
   renderNFTs(allNFTs); 
   notify("Çıxış edildi");
 }
 
+// Hesab dəyişəndə işləyən funksiya (Reload etmədən)
 async function handleAccountsChanged(accounts) {
   if (accounts.length === 0) {
+    // Əgər istifadəçi MetaMask-dan tamamilə çıxış edibsə
     handleDisconnect();
   } else {
+    // Əgər istifadəçi başqa hesaba keçibsə
     userAddress = accounts[0].toLowerCase();
     
+    // Signer və Seaport-u təzə hesab üçün yeniləyirik
     if (provider) {
         signer = provider.getSigner();
         seaport = new Seaport(signer, { 
@@ -150,6 +156,7 @@ async function handleAccountsChanged(accounts) {
     addrSpan.textContent = `Wallet: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
     notify("Hesab dəyişildi!");
     
+    // Düymələri yeniləyirik (Buttonlar sahibə görə dəyişsin)
     connectBtn.style.display = "none";
     disconnectBtn.style.display = "inline-block";
     renderNFTs(allNFTs);
@@ -179,8 +186,11 @@ async function connectWallet() {
     }
 
     const accounts = await provider.send("eth_requestAccounts", []);
+    
+    // İlk qoşulma məntiqi
     await handleAccountsChanged(accounts);
 
+    // Sign Typed Data fix
     if (signer && !signer.signTypedData) {
         signer.signTypedData = async (domain, types, value) => {
             const typesCopy = { ...types }; delete typesCopy.EIP712Domain; 
@@ -190,7 +200,8 @@ async function connectWallet() {
     
     notify("Cüzdan qoşuldu!");
 
-    window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+    // === RELOAD ƏVƏZİNƏ EVENT LISTENER ===
+    window.ethereum.removeListener("accountsChanged", handleAccountsChanged); // Dublikat olmasın deyə əvvəlcə silirik
     window.ethereum.on("accountsChanged", handleAccountsChanged);
 
   } catch (err) { 
@@ -201,49 +212,6 @@ async function connectWallet() {
 
 disconnectBtn.onclick = handleDisconnect;
 connectBtn.onclick = connectWallet;
-
-// ==========================================
-// BLOCKCHAIN-DƏN ADLARI YENİLƏMƏ
-// ==========================================
-
-async function fetchNFTNamesFromBlockchain() {
-    // Read-only provider (wallet qoşulması lazım deyil)
-    const readProvider = new ethers.providers.JsonRpcProvider(import.meta.env.VITE_APECHAIN_RPC || "https://rpc.apechain.com");
-    
-    const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, [
-        "function tokenURI(uint256) view returns (string)"
-    ], readProvider);
-
-    const cards = document.querySelectorAll(".nft-card");
-
-    for (let card of cards) {
-        const titleEl = card.querySelector(".card-title");
-        
-        // Yalnız adı "NFT #" ilə başlayanları (bazada adı olmayanları) yoxlayır
-        if (titleEl && titleEl.textContent.includes("NFT #")) {
-            const tokenid = card.id.replace("card-", "");
-
-            try {
-                let uri = await nftContract.tokenURI(tokenid);
-                
-                // IPFS linkini HTTP-ə çevir
-                if (uri.startsWith("ipfs://")) {
-                    uri = uri.replace("ipfs://", "https://ipfs.io/ipfs/");
-                }
-
-                const response = await fetch(uri);
-                const metadata = await response.json();
-
-                if (metadata.name) {
-                    titleEl.textContent = metadata.name;
-                    // Opsional: Bunu gələcəkdə bazaya da yaza bilərsən
-                }
-            } catch (err) {
-                console.warn(`Name fetch error for #${tokenid}:`, err);
-            }
-        }
-    }
-}
 
 // ==========================================
 // DATA YÜKLƏMƏ
@@ -273,10 +241,6 @@ async function loadNFTs() {
     const data = await res.json();
     allNFTs = data.nfts || [];
     renderNFTs(allNFTs);
-
-    // MƏLUMAT YÜKLƏNƏNDƏN SONRA ADLARI YENİLƏ
-    fetchNFTNamesFromBlockchain();
-
   } catch (err) {
     console.error(err);
     marketplaceDiv.innerHTML = "<p style='color:red; text-align:center;'>Yüklənmə xətası.</p>";
@@ -284,15 +248,15 @@ async function loadNFTs() {
 }
 
 // ==========================================
-// RENDER UI
+// RENDER & HTML GENERATION (YENİ)
 // ==========================================
 
+// Tək bir kartı yaradan funksiya (Reloadsız yeniləmə üçün vacibdir)
 function createCardElement(nft) {
     const tokenidRaw = (nft.tokenid !== undefined && nft.tokenid !== null) ? nft.tokenid : nft.tokenId;
     if (tokenidRaw === undefined || tokenidRaw === null) return null;
     const tokenid = tokenidRaw.toString(); 
 
-    // Əgər bazada ad varsa onu götürür, yoxdursa "NFT #ID" yazır (Sonra funksiya bunu dəyişəcək)
     const name = nft.name || `NFT #${tokenid}`;
     const image = resolveIPFS(nft.image);
     
@@ -314,7 +278,7 @@ function createCardElement(nft) {
 
     const card = document.createElement("div");
     card.className = "nft-card";
-    card.id = `card-${tokenid}`; 
+    card.id = `card-${tokenid}`; // Kartı tapmaq üçün ID veririk
 
     let checkboxHTML = canManage ? `<input type="checkbox" class="select-box" data-id="${tokenid}">` : "";
 
@@ -354,6 +318,7 @@ function createCardElement(nft) {
         </div>
     `;
 
+    // Event Listeners
     const chk = card.querySelector(".select-box");
     if (chk) {
         chk.checked = selectedTokens.has(tokenid);
@@ -364,6 +329,7 @@ function createCardElement(nft) {
         };
     }
 
+    // Button Listeners
     if (isListed && !canManage) {
         const btn = card.querySelector(".buy-btn");
         if(btn) btn.onclick = async () => await buyNFT(nft);
@@ -396,6 +362,7 @@ function renderNFTs(list) {
     });
 }
 
+// Səhifəni yeniləmədən tək bir kartı yeniləmək üçün funksiya
 function refreshSingleCard(tokenid) {
     const nftData = allNFTs.find(n => n.tokenid == tokenid);
     if (!nftData) return;
@@ -404,7 +371,7 @@ function refreshSingleCard(tokenid) {
     const newCard = createCardElement(nftData);
 
     if (oldCard && newCard) {
-        oldCard.replaceWith(newCard);
+        oldCard.replaceWith(newCard); // Köhnə kartı yenisi ilə əvəz edirik (Reloadsız)
     } else if (!oldCard && newCard) {
         marketplaceDiv.appendChild(newCard); 
     }
@@ -426,7 +393,7 @@ if (searchInput) {
 }
 
 // ==========================================
-// TOPLU LISTING
+// TOPLU UI & LISTING
 // ==========================================
 
 function updateBulkUI() {
@@ -469,6 +436,7 @@ async function bulkListNFTs(tokenIds, priceInEth) {
     const cleanTokenIds = tokenIds.map(t => String(t));
     const seller = await signer.getAddress();
 
+    // Approve
     try {
         const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, 
             ["function isApprovedForAll(address,address) view returns(bool)", "function setApprovalForAll(address,bool)"], signer);
@@ -502,10 +470,14 @@ async function bulkListNFTs(tokenIds, priceInEth) {
 
         notify("İmza alındı! UI yenilənir...");
 
+        // ====================================================
+        // RELOAD YERİNƏ LOCAL UPDATE (Səhifəni yeniləmirik)
+        // ====================================================
         for (const order of signedOrders) {
             const offerItem = order.parameters.offer[0];
             const tokenStr = offerItem.identifierOrCriteria;
 
+            // 1. Bazaya göndəririk (Arxa planda)
             fetch(`${BACKEND_URL}/api/order`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -518,14 +490,18 @@ async function bulkListNFTs(tokenIds, priceInEth) {
                 }),
             });
 
+            // 2. Lokal "allNFTs" massivini yeniləyirik
             const nftIndex = allNFTs.findIndex(n => n.tokenid == tokenStr);
             if (nftIndex !== -1) {
                 allNFTs[nftIndex].price = priceInEth;
                 allNFTs[nftIndex].seller_address = seller.toLowerCase();
                 allNFTs[nftIndex].seaport_order = orderToJsonSafe(order); 
             }
+
+            // 3. UI-da yalnız bu kartı yeniləyirik
             refreshSingleCard(tokenStr);
         }
+
         notify("Uğurla listələndi!");
 
     } catch (err) {
@@ -578,6 +554,11 @@ async function buyNFT(nftRecord) {
         notify("Blokçeyndə təsdiqlənir...");
         await tx.wait();
         
+        // ====================================================
+        // RELOAD YERİNƏ LOCAL UPDATE (Səhifəni yeniləmirik)
+        // ====================================================
+        
+        // 1. Bazaya məlumat göndəririk
         fetch(`${BACKEND_URL}/api/buy`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
@@ -591,15 +572,19 @@ async function buyNFT(nftRecord) {
         
         notify("Uğurlu alış! UI yenilənir...");
 
+        // 2. Lokal "allNFTs" massivini yeniləyirik
         const nftIndex = allNFTs.findIndex(n => n.tokenid == nftRecord.tokenid);
         if (nftIndex !== -1) {
-            allNFTs[nftIndex].price = 0; 
+            allNFTs[nftIndex].price = 0; // Satışdan çıxdı
             allNFTs[nftIndex].seller_address = null;
             allNFTs[nftIndex].buyer_address = buyerAddress.toLowerCase();
             allNFTs[nftIndex].seaport_order = null;
         }
 
+        // 3. UI-da yalnız bu kartı yeniləyirik
         refreshSingleCard(nftRecord.tokenid);
+
+        // 4. Statistikanı (Volume) yeniləyirik
         fetchStats();
 
     } catch (err) {
